@@ -1,0 +1,139 @@
+---
+title: "Genomic_ranges_assignment"
+output: word_document
+--
+
+#Genomic Ranges Assignment
+
+Your genomic ranges assignment will consist of two simple components:
+
+1. Create an R Markdown file for the workflow described in slides 132-139 of the Genomic Ranges lecture (see Chapter 9, pp 325-327, in Buffalo for more details on this workflow). In this example you will learn how to extract variants by exons that are represented by genomic ranges.
+
+2. Write a file (and include this in your assignment repository) in which you append a column including the number of variants per exon (see slide 139).
+
+
+##Instal appropriate packages and required features
+
+```{Joe Code}
+
+getwd()
+
+setwd("C:/Users/Joe/Desktop/Genomic_ranges")
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+biocLite("GenomicRanges")
+library(GenomicRanges)
+biocLite("rtracklayer")
+library(rtracklayer)
+library(BiocInstaller)
+biocLite("GenomicFeatures")
+
+```
+
+##Importing Mus musculus Chromosome 1 
+
+This section will provide the code to import the Mus musculus genome and make a variable to represent chromosome 1 variants (SNPs, indels, etc...) from the NIH database. 
+
+```{ }
+#create a variable called txdb to include the mouse genome
+
+biocLite("TxDb.Mmusculus.UCSC.mm10.ensGene")
+library(TxDb.Mmusculus.UCSC.mm10.ensGene)
+txdb <- TxDb.Mmusculus.UCSC.mm10.ensGene
+
+
+```
+
+## Create a variable to store the Mus musculus genome 
+
+This section will have you download a file from the Buffalo github repository into your working directory, and use the rtracklayer package to import the file
+
+```{}
+#download the file
+download.file('https://github.com/vsbuffalo/bds-files/blob/master/chapter-09-working-with-range-data/mm10_snp137_chr1_trunc.bed.gz', destfile = 'mm10_snp137_chr1_trunc2.bed.gz', method = "curl")
+
+#create a variable called dbsnp137 containing the snp137 build of the Mus musculus genome 
+dbsnp137 <- import("mm10_snp137_chr1_trunc.bed.gz")
+
+```
+
+#Find all the variants within exons of the Mus musculus genome 
+
+We want to find all variants within exons on this mouse chromosome. Let's first collapse all overlapping exons in the mouse TranscriptDb object we created earlier and create an object with only exons from chr1:
+
+
+```{ }
+#Collapse all overlapping exons
+collapsed_exons <- reduce(exons(txdb), ignore.strand=TRUE)
+
+#create an object with only exons from chr1 named chr1_collapsed_exons
+chr1_collapsed_exons <- collapsed_exons[seqnames(collapsed_exons) == "chr1"]
+
+
+#Before extracting variants in exons, let's first inspect our variant file:
+summary(width(dbsnp137))
+
+```
+
+The summary output demonstrates the minimum, first quartile, median, mean, third quartile and  maximum. 
+
+It looks like a few of the genomic variants have a width of zero.
+Therefore we should do some QC on the data to adjust those puppies to one.
+
+```{}
+#create new object 
+dbsnp137_ones <- dbsnp137
+
+#put all variants into object that have a width of 0
+zw_i <- width(dbsnp137_ones) == 0
+
+#resize those objects to 1 and put them back in the df
+dbsnp137_ones[zw_i] <- resize(dbsnp137_ones[zw_i], width=1)
+
+```
+
+
+##Find number of variants
+
+Pull out those variants that overlap exons on chromosome 1 by creating a hits object:
+
+```{ }
+#create new object
+hits <- findOverlaps(dbsnp137_ones, chr1_collapsed_exons, ignore.strand=TRUE)
+
+#Determine the number of variants and the proportion of variants that are exonic:
+##USE THE LENGTH ON THE UNIQUE VALUES OF OUR OBJECTS
+length(unique(queryHits(hits)))
+
+#divide the results from up above by the length of our object
+length(unique(queryHits(hits)))/length(dbsnp137_ones)
+
+```
+
+
+#Number of variants per exon
+
+Here we present code using the countOverlaps() function to find the number of variants per exon 
+
+
+```{ }
+#create an object to represent the number of varaints
+var_counts <- countOverlaps(chr1_collapsed_exons, dbsnp137_ones, ignore.strand=TRUE)
+
+
+#Add this to our previous object with the exon information
+
+chr1_collapsed_exons$num_vars <- var_counts
+
+
+```
+
+
+#Export to a file
+
+Here we will make a file with our results
+```{}
+#export the object
+export.gff(chr1_collapsed_exons, con="chr1_collapsed_exons.gff", source ="rtracklayer")
+
+```
