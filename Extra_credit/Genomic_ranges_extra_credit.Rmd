@@ -1,0 +1,254 @@
+---
+title: "Genomic_ranges_extra_credit"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Genomic Ranges Extra Credit Instructions
+
+For a big whopping five points of extra credit, create an R Markdown file for the exercise described in Buffalo pp. 314-319 in which promoter ranges are created and sequence within these ranges is then extracted. Be sure to include a file with the sequences of the the promoters you extract in your assignment repository.
+
+##Instal appropriate software
+
+```{Joe Code}
+getwd()
+
+setwd("C:/Users/Joe/Desktop/Genomic_ranges")
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+biocLite("GenomicRanges")
+library(GenomicRanges)
+biocLite("rtracklayer")
+library(rtracklayer)
+library(BiocInstaller)
+biocLite("GenomicFeatures")
+
+```
+
+
+##Page 313
+Using the rtracklayer package and transcriptDb objects of the Genomic features, we can work with data in a variety of formats
+In this section we will demonstrate code that allows importing of the mus musculus genome into a variable
+
+```{Joe Code}
+
+#first import the mus musculus genome into a variable called mm_gtf
+mm_gtf <- import('Mus_musculus.GRCm38.75_chr1.gtf.gz')
+
+#check out the column names
+colnames(mcols(mm_gtf))
+
+
+```
+
+
+
+##Page 314 
+Using the rtracklayer package you can learn how to do cool stuff using gtf files
+In this section we will describe how to write pseudo genes to a GTF file 
+
+```{Joe Code}
+
+#first set a random seed to 0
+set.seed(0)
+
+#make a variable called pseudogene to chantaine genes and pseudogenes
+pseudogene_i <- which(mm_gtf$gene_biotype == "pseudogene" & mm_gtf$type == "gene")
+
+#Pull out a sample of the pseudogene
+pseudogene_sample <- sample(pseudogene_i, 5)
+
+
+#Export this into a gtf file
+ export(mm_gtf[pseudogene_sample], con="five_random_pseudogene.gtf", format="GTF")
+
+
+```
+
+##Time to make the BED
+In this section we will describe code to generate BED format data
+
+```{ }
+#make a variable for the bed data
+bed_data <- mm_gtf[pseudogene_sample]
+
+#Clear metadata
+mcols(bed_data) <- NULL
+
+#Export this into a BED file
+export(bed_data, con="five_random_pseudogene.gtf", format="BED")
+
+```
+
+##Retreiving Promoter regions: Who needs a promotion? pg 314-315
+In this section we will describe code to use the Genomic Ranges package to look at some protein coding genes
+
+```{ }
+#First lets make a table
+table(mm_gtf$gene_biotype)
+
+
+#Next lets make an object to represent the protein coding genes of Chromosome 1
+chr1_pcg <- mm_gtf[mm_gtf$type == "gene" & mm_gtf$gene_biotype == "protein_coding"]
+
+
+#Check out a summary of that data!
+summary(width(chr1_pcg))
+
+#how long is it?
+length(chr1_pcg)
+
+#make a new object with some flanking regions
+chr1_pcg_3kb_up <- flank(chr1_pcg, width=3000)
+
+```
+
+##Extracting the promoter regions
+In this section we will describe code to look at promoter regions based on pg 315-316
+
+
+```{ }
+#Lets create a new set of data looking at the promoter region
+chr1_pcg_3kb_up2 <- promoters(chr1_pcg, upstream=3000, downstream=0)
+
+#Check to see if our data has any identical values with the earlier object
+identical(chr1_pcg_3kb_up, chr1_pcg_3kb_up2)
+
+```
+
+##Installing a BSgenome
+
+In this section we will describe code using BiocInstaller to install the BSgenome package on pg316
+
+```{ }
+#Call the installer from our library of packages
+library(BiocInstaller)
+
+#use the program to grab that pile of BSgenome
+biocLite("BSgenome")
+
+#use bioClite to grab the mm10 version of our genome
+biocLite("BSgenome.Mmusculus.UCSC.mm10")
+
+```
+
+##Playing with a BSgenome
+
+In this section we will describe code to poke around this genome
+
+```{ }
+#Call the genome from our library of packages
+library(BSgenome.Mmusculus.UCSC.mm10)
+
+#create an object to hold that data
+mm_gm <- BSgenome.Mmusculus.UCSC.mm10
+
+#Use the organism command to check it out
+organism(mm_gm)
+
+#check out the version
+providerVersion(mm_gm)
+
+#check out the provider
+provider(mm_gm)
+```
+
+##Sequence Information
+
+In this section we will describe code on pg 317 to look at sequence information
+
+```{ }
+#Check out seqinfo
+seqinfo(mm_gm)
+
+#check out one column of data 
+mm_gm$chrM
+
+#check out number 22
+mm_gm[[22]]
+
+```
+
+##Stringing Biology Together
+
+In this section we will describe code to utilize the package Biostrings
+
+```{ }
+#Call the package from our library of packages
+library(Biostrings)
+
+#use it to match a pattern in our data
+matchPattern("GGCGCGCC", mm_gm$chr1)
+
+```
+
+##Remap a chromosome
+
+In this section we will describe code to remap chromosomes as if there were some not mapped appropriately on pgs 317 - 318
+
+```{ }
+#check if the sequence levels in our earlier object is within the mapped region 
+all(seqlevels(chr1_pcg_3kb_up) %in% seqlevels(mm_gm))
+
+#create a new object called gr for genomic ranges of chr1 & 2
+gr <- GRanges(c("chr1", "chr2"), IRanges(start=c(3,4),width=10))
+
+#check out this new object
+seqlevels(gr)
+
+#change chr1 to 1
+seqlevels(gr) <- c("1", "2")
+
+#look at updates
+seqlevels(gr)
+
+#check out the current formatting style of the levels
+seqlevelsStyle(chr1_pcg_3kb_up)
+
+#check out the current formatting style of the levels
+seqlevelsStyle(mm_gm)
+
+#update the style to UCSC format 
+seqlevelsStyle(chr1_pcg_3kb_up) <- "UCSC"
+
+#check if all of your sequence levels are in the same format
+all(seqlevels(chr1_pcg_3kb_up) %in% seqlevels(mm_gm))
+
+```
+
+##Grab particular regions
+
+In this section we will describe code to grab portions of a GRanges object on pgs 318 - 319
+
+```{ }
+#make a new object
+chr1_3kb_seqs <- getSeq(mm_gm, chr1_pcg_3kb_up)
+
+#check out the object 
+chr1_3kb_seqs
+
+#return the sequence for this object and export to a file
+writeXStringSet(chr1_3kb_seqs, file="mm10_chr1_3kb_promoters.fasta", format="fasta")
+
+```
+
+##Gaps, Reducing, and Setdiffs
+
+In this section we will describe code to use the gaps functions on pg 319
+
+```{ }
+#make a new object
+gr2 <- GRanges(c("chr1", "chr2"), IRanges(start=c(4,12), width=6), strand=c("+","-"), seqlengths=c(chr1=21, chr2=41))
+
+#check out the object 
+gr2
+
+#run the gaps function
+gaps(gr2)
+```
+
+
+
